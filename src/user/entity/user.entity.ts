@@ -18,9 +18,6 @@ export class User {
   @Column({ type: 'varchar', length: 255 })
   password: string;
 
-  @Column({ type: 'varchar', length: 30, nullable: true })
-  phone: string;
-
   @Column({ type: 'text', nullable: true })
   profile_image: string;
 
