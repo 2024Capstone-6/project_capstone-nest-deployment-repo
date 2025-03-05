@@ -6,7 +6,7 @@ import { CreateUserDto } from '../user/dto/create-user.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('signin')
+  @Post('login')
   async signIn(
     @Body('email') email: string,
     @Body('password') password: string,
