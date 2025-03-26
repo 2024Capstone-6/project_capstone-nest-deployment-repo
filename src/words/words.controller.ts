@@ -1,8 +1,10 @@
-import { Controller, Delete, Get, Post, Body, Param, Request, BadRequestException  } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Body, Param, Request, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { WordsService } from './words.service';
 import { Word } from './entities/words.entity';
 import { WordBook } from './entities/word-books.entity';
 
+@UseGuards(AuthGuard('jwt'))
 @Controller('words')
 export class WordsController {
   constructor(private readonly wordsService: WordsService) {}
@@ -20,17 +22,13 @@ export class WordsController {
   // ✅ 단어장 생성 API
   @Post('/books')
   async createWordBook(@Request() req, @Body() body: { wordbook_title: string }) {
-    try {
-      return await this.wordsService.createWordBook(req.user.user_id, body.wordbook_title);
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
+    return this.wordsService.createWordBook(req.user.uuid, body.wordbook_title);
   }
 
   // ✅ 단어장 조회 API
   @Get('/books')
   async getUserWordBooks(@Request() req): Promise<WordBook[]> {
-    return this.wordsService.getUserWordBooks(req.user.user_id);
+    return this.wordsService.getUserWordBooks(req.user.uuid);
   }
 
   // ✅ 단어장에 단어 추가(즐겨찾기) API
@@ -53,7 +51,7 @@ export class WordsController {
 
   // ✅ 단어장 삭제 API
   @Delete('/books/:wordbookId')
-  async deleteWordBook(@Param('wordbookId') wordbookId: number): Promise<void> {
-    return this.wordsService.deleteWordBook(wordbookId);
+  async deleteWordBook(@Param('wordbookId') wordbookId: number, @Request() req): Promise<void> {
+    return this.wordsService.deleteWordBook(wordbookId, req.user.uuid);
   } 
 }

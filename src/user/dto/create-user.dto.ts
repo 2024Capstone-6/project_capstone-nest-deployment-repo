@@ -9,7 +9,6 @@ export class CreateUserDto {
   @IsNotEmpty()
   password: string;
 
-  social_chek: number;
-
+  @IsNotEmpty()
   name: string;
 }
