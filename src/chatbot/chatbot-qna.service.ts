@@ -42,10 +42,12 @@ export class ChatQnAService {
 
     return questions.map(q => ({
       qna_id: q.qna_id,
-      chatbot_question: q.chatbot_question,
+      order_index: q.order_index,
+      jp_question: q.jp_question,
+      kr_question: q.kr_question,
+      jp_answer: q.jp_answer,
       kr_answer: q.kr_answer,
       blank_answer: q.blank_answer,
-      order_index: q.order_index,
       choices: q.choice_list,
     }));
   }

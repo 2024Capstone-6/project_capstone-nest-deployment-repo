@@ -69,9 +69,9 @@ export class ChatbotController {
   // ✅ 유저 입력값 검증 및 다음 단계 진행
   @Post('check-answer/:situationId/:orderIndex')
   async checkAnswer(
-    @Param('situationId') situationId: number, 
-    @Param('orderIndex') orderIndex: number,
-    @Body('selectedChoice') selectedChoice: string
+  @Param('situationId') situationId: number, 
+  @Param('orderIndex') orderIndex: number,
+  @Body('selectedChoice') selectedChoice: string
   ) {
     return await this.chatQnAService.checkAnswer(situationId, orderIndex, selectedChoice);
   }
