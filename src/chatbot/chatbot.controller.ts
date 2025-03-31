@@ -16,13 +16,14 @@ export class ChatbotController {
     private readonly chatQnAService: ChatQnAService 
   ) {}
 
-  // 🔥 제미니 챗봇 관련
+  // 🔥 제미나이 챗봇 관련
   @Post('text-chat')
   async textChat(@Body('message') message: string) {
-    const response = await this.chatbotService.generateResponse(message);
+    const response = await this.chatbotService.testGenerateResponse(message);
     return { reply: response };
   }
 
+  // ✅ 제미나이 API 연결 테스트
   @Post('voice-chat')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() })) // ✅ 메모리 저장 방식 사용
   async voiceChat(@UploadedFile() file: Express.Multer.File, @Res() res: Response) {
@@ -38,7 +39,7 @@ export class ChatbotController {
       console.log(`📝 변환된 텍스트: ${text}`);
 
       // 2. AI 응답 생성 (Gemini API)
-      const aiResponse = await this.chatbotService.generateResponse(text);
+      const aiResponse = await this.chatbotService.testGenerateResponse(text);
       console.log(`🤖 AI 응답: ${aiResponse}`);
 
       // 3. 응답을 음성으로 변환 (TTS)
@@ -50,6 +51,90 @@ export class ChatbotController {
     } catch (error) {
       console.error('❌ 음성 챗봇 오류:', error);
       res.status(500).json({ error: '음성 챗봇 처리 중 오류 발생' });
+    }
+  }
+
+  // ✅ first 챗봇 시작
+  @Post('start')
+  async startConversation(@Body() body: { situation: string }) {
+    try {
+      const { situation } = body;
+      // 1. 상황 기반 프롬프트 구성
+      const prompt = `
+      状況: ${situation}
+      あなたはその状況における専門家です。ユーザーは${situation}の場面にいる人です。
+      以下のルールに従って自然なロールプレイを始めてください。
+      - 会話は現実のやり取りのように丁寧かつ自然に
+      - 1回に1~2文で会話を進める
+      - 質問を投げたら、ユーザーの回答を 待ってから次に進む
+      まずはあなたから会話を始めてください。
+      `;
+
+      // 2. Gemini 응답
+      const geminiText = await this.chatbotService.generateResponse(prompt);
+
+      // 3. 세션 시작
+      this.chatbotService.startSession(geminiText);
+
+      // 4. TTS 음성 변환
+      const audioPath = `output_${Date.now()}.mp3`;
+      await this.textToSpeechService.synthesizeSpeech(geminiText, audioPath);
+
+      // 5. 응답
+      return {
+        text: geminiText,
+        audioUrl: `/audio/${audioPath}`, // 프론트에서 static 경로로 접근
+      };
+    } catch (err) {
+      console.error('❌ 대화 시작 오류:', err);
+      return { error: '대화 시작 중 오류 발생' };
+    }
+  }
+
+  // ✅ continue 챗봇 이어가기
+  @Post('continue')
+  async continueConversation(@Body() body: { userText: string; situation: string }) {
+    try {
+      const { userText, situation } = body;
+
+      // 1. 유저 메시지를 메모리에 저장
+      this.chatbotService.appendUserMessage(userText);
+
+      // 2. 상황 프롬프트를 포함한 contextPrompt 생성
+      const contextPrompt = `
+        あなたは今「${situation}」という状況で、ユーザーとロールプレイを続けています。
+        これまでの会話を踏まえて、次の自然な一言を話してください。
+      `;
+
+      // 3. 챗봇 응답 받기 (contextPrompt 포함)
+      const geminiText = await this.chatbotService.continueConversation(contextPrompt);
+
+      // 4. 메모리에 챗봇 응답 저장
+      this.chatbotService.appendGeminiMessage(geminiText);
+
+      // 5. TTS 변환
+      const audioPath = `output_${Date.now()}.mp3`;
+      await this.textToSpeechService.synthesizeSpeech(geminiText, audioPath);
+
+      return {
+        text: geminiText,
+        audioUrl: `/audio/${audioPath}`,
+      };
+    } catch (error) {
+      console.error('❌ 대화 이어가기 오류:', error);
+      return { error: '대화 이어가기 중 오류 발생' };
+    }
+  }
+
+  // ✅ feedback 받기
+  @Post('feedback')
+  async getFeedback() {
+    try {
+      const feedback = await this.chatbotService.generateFeedback();
+      return { feedback };
+    } catch (err) {
+      console.error('❌ 피드백 생성 오류:', err);
+      return { error: '피드백 생성 중 오류 발생' };
     }
   }
 
