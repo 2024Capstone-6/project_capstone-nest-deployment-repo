@@ -58,33 +58,8 @@ export class ChatbotController {
   @Post('start')
   async startConversation(@Body() body: { situation: string }) {
     try {
-      const { situation } = body;
-      // 1. 상황 기반 프롬프트 구성
-      const prompt = `
-      状況: ${situation}
-      あなたはその状況における専門家です。ユーザーは${situation}の場面にいる人です。
-      以下のルールに従って自然なロールプレイを始めてください。
-      - 会話は現実のやり取りのように丁寧かつ自然に
-      - 1回に1~2文で会話を進める
-      - 質問を投げたら、ユーザーの回答を 待ってから次に進む
-      まずはあなたから会話を始めてください。
-      `;
-
-      // 2. Gemini 응답
-      const geminiText = await this.chatbotService.generateResponse(prompt);
-
-      // 3. 세션 시작
-      this.chatbotService.startSession(geminiText);
-
-      // 4. TTS 음성 변환
-      const audioPath = `output_${Date.now()}.mp3`;
-      await this.textToSpeechService.synthesizeSpeech(geminiText, audioPath);
-
-      // 5. 응답
-      return {
-        text: geminiText,
-        audioUrl: `/audio/${audioPath}`, // 프론트에서 static 경로로 접근
-      };
+      const { text, audioUrl } = await this.chatbotService.startConversation(body.situation);
+      return { text, audioUrl };
     } catch (err) {
       console.error('❌ 대화 시작 오류:', err);
       return { error: '대화 시작 중 오류 발생' };
@@ -93,38 +68,16 @@ export class ChatbotController {
 
   // ✅ continue 챗봇 이어가기
   @Post('continue')
-  async continueConversation(@Body() body: { userText: string; situation: string }) {
+  async continueConversation(@Body() body: { situation: string; userText: string }) {
     try {
-      const { userText, situation } = body;
-
-      // 1. 유저 메시지를 메모리에 저장
-      this.chatbotService.appendUserMessage(userText);
-
-      // 2. 상황 프롬프트를 포함한 contextPrompt 생성
-      const contextPrompt = `
-        あなたは今「${situation}」という状況で、ユーザーとロールプレイを続けています。
-        これまでの会話を踏まえて、次の自然な一言を話してください。
-      `;
-
-      // 3. 챗봇 응답 받기 (contextPrompt 포함)
-      const geminiText = await this.chatbotService.continueConversation(contextPrompt);
-
-      // 4. 메모리에 챗봇 응답 저장
-      this.chatbotService.appendGeminiMessage(geminiText);
-
-      // 5. TTS 변환
-      const audioPath = `output_${Date.now()}.mp3`;
-      await this.textToSpeechService.synthesizeSpeech(geminiText, audioPath);
-
-      return {
-        text: geminiText,
-        audioUrl: `/audio/${audioPath}`,
-      };
+      const { text, audioUrl } = await this.chatbotService.continueConversation(body.situation, body.userText);
+      return { text, audioUrl };
     } catch (error) {
       console.error('❌ 대화 이어가기 오류:', error);
       return { error: '대화 이어가기 중 오류 발생' };
     }
   }
+
 
   // ✅ feedback 받기
   @Post('feedback')
