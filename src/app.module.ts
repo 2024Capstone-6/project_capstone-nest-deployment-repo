@@ -9,6 +9,7 @@ import { QuizGameModule } from './quiz-game/quiz-game.module';
 import { WordsModule } from './words/words.module';
 import { GrammarsModule } from './grammars/grammars.module';
 import { ChatbotModule } from './chatbot/chatbot.module';
+import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
@@ -34,7 +35,8 @@ import { ChatbotModule } from './chatbot/chatbot.module';
     WordsModule,
     GrammarsModule,
     ChatbotModule,
-    AuthModule
+    AuthModule,
+    MongooseModule.forRoot('mongodb+srv://mymongo:1234@cluster0.ltogx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0'),
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,34 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body } from '@nestjs/common';
 import { QuizGameService } from './quiz-game.service';
-import { CreateQuizGameDto } from './dto/create-quiz-game.dto';
-import { UpdateQuizGameDto } from './dto/update-quiz-game.dto';
 
-@Controller('quiz-game')
+@Controller('api/rooms')
 export class QuizGameController {
-  constructor(private readonly quizGameService: QuizGameService) {}
-
-  @Post()
-  create(@Body() createQuizGameDto: CreateQuizGameDto) {
-    return this.quizGameService.create(createQuizGameDto);
-  }
+  constructor(private readonly quizgameservice: QuizGameService) {}
 
   @Get()
-  findAll() {
-    return this.quizGameService.findAll();
+  async getRooms() {
+    return this.quizgameservice.getLobbyRooms();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.quizGameService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateQuizGameDto: UpdateQuizGameDto) {
-    return this.quizGameService.update(+id, updateQuizGameDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.quizGameService.remove(+id);
+  @Post()
+  async createRoom(@Body() body: { name: string }) {
+    return this.quizgameservice.createRoom(body.name);
   }
 }
