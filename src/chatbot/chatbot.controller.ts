@@ -23,7 +23,7 @@ export class ChatbotController {
     return { reply: response };
   }
 
-  // ✅ 제미나이 API 연결 테스트
+  // ✅ 제미나이 API 연결 테스트 (음성 입력 → 텍스트 응답 → 음성 변환)
   @Post('voice-chat')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() })) // ✅ 메모리 저장 방식 사용
   async voiceChat(@UploadedFile() file: Express.Multer.File, @Res() res: Response) {
@@ -58,8 +58,8 @@ export class ChatbotController {
   @Post('start')
   async startConversation(@Body() body: { situation: string }) {
     try {
-      const { text, audioUrl } = await this.chatbotService.startConversation(body.situation);
-      return { text, audioUrl };
+      const { text } = await this.chatbotService.startConversation(body.situation);
+      return { text };
     } catch (err) {
       console.error('❌ 대화 시작 오류:', err);
       return { error: '대화 시작 중 오류 발생' };
@@ -70,8 +70,8 @@ export class ChatbotController {
   @Post('continue')
   async continueConversation(@Body() body: { situation: string; userText: string }) {
     try {
-      const { text, audioUrl } = await this.chatbotService.continueConversation(body.situation, body.userText);
-      return { text, audioUrl };
+      const { text } = await this.chatbotService.continueConversation(body.situation, body.userText);
+      return { text };
     } catch (error) {
       console.error('❌ 대화 이어가기 오류:', error);
       return { error: '대화 이어가기 중 오류 발생' };
