@@ -16,13 +16,14 @@ export class ChatbotController {
     private readonly chatQnAService: ChatQnAService 
   ) {}
 
-  // 🔥 제미니 챗봇 관련
+  // 🔥 제미나이 챗봇 관련
   @Post('text-chat')
   async textChat(@Body('message') message: string) {
-    const response = await this.chatbotService.generateResponse(message);
+    const response = await this.chatbotService.testGenerateResponse(message);
     return { reply: response };
   }
 
+  // ✅ 제미나이 API 연결 테스트 (음성 입력 → 텍스트 응답 → 음성 변환)
   @Post('voice-chat')
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() })) // ✅ 메모리 저장 방식 사용
   async voiceChat(@UploadedFile() file: Express.Multer.File, @Res() res: Response) {
@@ -38,7 +39,7 @@ export class ChatbotController {
       console.log(`📝 변환된 텍스트: ${text}`);
 
       // 2. AI 응답 생성 (Gemini API)
-      const aiResponse = await this.chatbotService.generateResponse(text);
+      const aiResponse = await this.chatbotService.testGenerateResponse(text);
       console.log(`🤖 AI 응답: ${aiResponse}`);
 
       // 3. 응답을 음성으로 변환 (TTS)
@@ -50,6 +51,43 @@ export class ChatbotController {
     } catch (error) {
       console.error('❌ 음성 챗봇 오류:', error);
       res.status(500).json({ error: '음성 챗봇 처리 중 오류 발생' });
+    }
+  }
+
+  // ✅ first 챗봇 시작
+  @Post('start')
+  async startConversation(@Body() body: { situation: string }) {
+    try {
+      const { text } = await this.chatbotService.startConversation(body.situation);
+      return { text };
+    } catch (err) {
+      console.error('❌ 대화 시작 오류:', err);
+      return { error: '대화 시작 중 오류 발생' };
+    }
+  }
+
+  // ✅ continue 챗봇 이어가기
+  @Post('continue')
+  async continueConversation(@Body() body: { situation: string; userText: string }) {
+    try {
+      const { text } = await this.chatbotService.continueConversation(body.situation, body.userText);
+      return { text };
+    } catch (error) {
+      console.error('❌ 대화 이어가기 오류:', error);
+      return { error: '대화 이어가기 중 오류 발생' };
+    }
+  }
+
+
+  // ✅ feedback 받기
+  @Post('feedback')
+  async getFeedback() {
+    try {
+      const feedback = await this.chatbotService.generateFeedback();
+      return { feedback };
+    } catch (err) {
+      console.error('❌ 피드백 생성 오류:', err);
+      return { error: '피드백 생성 중 오류 발생' };
     }
   }
 
