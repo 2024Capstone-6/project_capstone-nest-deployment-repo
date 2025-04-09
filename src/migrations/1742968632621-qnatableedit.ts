@@ -7,6 +7,7 @@ export class Qnatableedit1742968632621 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE \`chatbot_qna\` DROP COLUMN \`chatbot_question\``);
         await queryRunner.query(`ALTER TABLE \`chatbot_qna\` ADD \`jp_question\` varchar(255) NOT NULL`);
         await queryRunner.query(`ALTER TABLE \`chatbot_qna\` ADD \`kr_question\` varchar(255) NOT NULL`);
+        await queryRunner.query(`DROP TABLE IF EXISTS \`quiz_games\``);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
