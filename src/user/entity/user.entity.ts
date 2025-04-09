@@ -2,7 +2,6 @@ import { Entity, PrimaryGeneratedColumn, Column, OneToMany, BeforeInsert } from 
 import { v4 as uuidv4 } from 'uuid';
 import { WordBook } from '../../words/entities/word-books.entity';
 import { GrammarBook } from '../../grammars/entities/grammar-books.entity';
-import { QuizGame } from '../../quiz-game/entities/quiz-game.entity';
 import { ChatLog } from '../../chatbot/entities/chat-log.entity';
 
 @Entity('user')
@@ -38,9 +37,6 @@ export class User {
 
   @OneToMany(() => GrammarBook, (grammarBook) => grammarBook.user, { cascade: true, onDelete: 'CASCADE' })
   grammar_books: GrammarBook[];
-
-  @OneToMany(() => QuizGame, (quizGame) => quizGame.ex_user, { cascade: true, onDelete: 'CASCADE' })
-  quiz_games: QuizGame[];
 
   @OneToMany(() => ChatLog, (chatLog) => chatLog.user, { cascade: true, onDelete: 'CASCADE' })
   chat_logs: ChatLog[];
