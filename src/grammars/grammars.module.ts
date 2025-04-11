@@ -5,9 +5,13 @@ import { GrammarMiddle } from './entities/grammar-middle.entity';
 import { GrammarBook } from './entities/grammar-books.entity';
 import { GrammarsService } from './grammars.service';
 import { GrammarsController } from './grammars.controller';
+import { UserModule } from 'src/user/user.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Grammar, GrammarMiddle, GrammarBook])],
+  imports: [
+    TypeOrmModule.forFeature([Grammar, GrammarMiddle, GrammarBook]),
+    UserModule,
+  ],
   providers: [GrammarsService],
   controllers: [GrammarsController],
   exports: [GrammarsService]
