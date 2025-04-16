@@ -11,6 +11,6 @@ export class GrammarsController {
   // ✅ 모든 문법 조회 API
   @Get()
   async getAllWords(): Promise<Grammar[]> {
-    return this.grammarsService.findAll();
+    return this.grammarsService.findAll(); 
   }
 }

@@ -84,7 +84,7 @@ export class AuthService {
     await this.userRepository.save(user);
   }
 
-  async signIn(email: string, password: string): Promise<string> {
+  async signIn(email: string, password: string): Promise<{ accessToken: string, uuid: string }> {
     const user = await this.userRepository.findOneBy({ email });
     
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -92,10 +92,12 @@ export class AuthService {
     }
   
     const payload = { email: user.email, sub: user.uuid };
-    return this.jwtService.sign(payload, { // 여기서 엑세스 토큰 만들고 리턴했음
+    const accessToken = this.jwtService.sign(payload, { // 여기서 엑세스 토큰 만들고 리턴했음
       secret : process.env.JWT_SECRET,
       expiresIn: process.env.JWT_EXPIRES_IN, // 엑세스 토큰 유효기간 15분
     });
+
+    return { accessToken, uuid: user.uuid };
   }
 
 

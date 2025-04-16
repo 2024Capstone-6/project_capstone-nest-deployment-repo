@@ -13,7 +13,7 @@ export class WordsController {
   // ✅ 모든 단어 조회 API
   @Get()
   async getAllWords(): Promise<Word[]> {
-    return this.wordsService.findAll();
+    return this.wordsService.findAll(); 
   }
 
   // ❌ 특정 단어 검색 API

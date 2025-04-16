@@ -8,7 +8,7 @@ import { QuizGameGateway } from './quiz-game.gateway';
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: QuizGameRoom.name, schema: ChatRoomSchema }
+      { name: QuizGameRoom.name, schema: ChatRoomSchema },
     ])
   ],
   providers: [QuizGameGateway, QuizGameService],
