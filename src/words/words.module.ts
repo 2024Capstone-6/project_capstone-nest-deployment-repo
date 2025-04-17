@@ -21,6 +21,6 @@ import { UserWordsService } from './user-words.service';
   ],
   providers: [WordsService,UserWordsService],
   controllers: [WordsController,UserWordsController],
-  exports: [WordsService,UserWordsService],
+  exports: [WordsService,UserWordsService,TypeOrmModule.forFeature([Word])],
 })
 export class WordsModule {}
