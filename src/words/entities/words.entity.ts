@@ -18,7 +18,7 @@ export class Word {
   @Column({ type: 'varchar', length: 10, nullable: true })
   word_level: string;
 
-  @Column({ type: 'simple-array', nullable: true })
+  @Column({ type: 'json', nullable: true })
   word_quiz: string[];
 
   @OneToMany(() => WordMiddle, (wordMiddle) => wordMiddle.word, { cascade: true, onDelete: 'CASCADE' })
