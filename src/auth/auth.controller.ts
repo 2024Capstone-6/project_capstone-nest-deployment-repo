@@ -3,6 +3,8 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { Res } from '@nestjs/common';
+import { Response } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -42,7 +44,7 @@ export class AuthController {
 
   // Step 2: Google에서 Authorization Code를 받는 콜백
   @Get('google/callback')
-  async googleAuthCallback(@Query('code') code: string) {
+  async googleAuthCallback(@Query('code') code: string, @Res() res: Response) {
     const tokenUrl = 'https://oauth2.googleapis.com/token';
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -78,9 +80,22 @@ export class AuthController {
     const accessToken = await this.authService.googleToken(savedUser);
     const refreshToken = await this.authService.googleRefreshToken(savedUser);
 
-    // 사용자 정보 반환
-    return {
-      accessToken,refreshToken
-    };
+    res.cookie('accessToken', accessToken, {
+      httpOnly: false,       // 자바스크립트로 접근 불가옵션 (XSS 방지) 차후 jwt guards 보안 처리후 true로 리팩토링 예정 false는 원래 보안상 추천되지 않음(프론트에서 쿠키에 접근가능해짐)
+      secure: false,        // HTTPS에서만 동작하려면 true (개발환경은 false)
+      sameSite: 'lax',      // CSRF 방지
+      maxAge: 60 * 60 * 1000, // 1시간 (밀리초 단위)
+      path: '/',
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: false,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
+      path: '/',
+    });
+
+    return res.redirect('http://localhost:3000/');
   }
 }
