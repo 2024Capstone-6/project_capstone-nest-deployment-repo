@@ -10,7 +10,7 @@ export class AuthController {
     private readonly httpService: HttpService
   ) {}
 
-  @Post('signin')
+  @Post('login')
   async signIn(
     @Body('email') email: string,
     @Body('password') password: string,
