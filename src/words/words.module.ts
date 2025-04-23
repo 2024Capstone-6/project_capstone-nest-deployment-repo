@@ -14,6 +14,6 @@ import { UserModule } from 'src/user/user.module';
   ],
   providers: [WordsService],
   controllers: [WordsController],
-  exports: [WordsService],
+  exports: [WordsService,TypeOrmModule.forFeature([Word])],
 })
 export class WordsModule {}

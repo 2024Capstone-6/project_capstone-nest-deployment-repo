@@ -14,6 +14,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: any) {
     // JWT payload 검증 후 사용자 정보를 반환
-    return { uuid: payload.sub, email: payload.email };
+    return { uuid: payload.sub, email: payload.email, name: payload.name }; // 유저 프로필 정보에 name 추가 
   }
 }

@@ -14,4 +14,9 @@ export class QuizGameController {
   async createRoom(@Body() body: { name: string }) {
     return this.quizgameservice.createRoom(body.name);
   }
+
+  @Get('/solo')
+  async getWords() {
+    return this.quizgameservice.getWords()
+  }
 }
