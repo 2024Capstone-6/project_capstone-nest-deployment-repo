@@ -84,7 +84,7 @@ export class AuthController {
       httpOnly: false,       // 자바스크립트로 접근 불가옵션 (XSS 방지) 차후 jwt guards 보안 처리후 true로 리팩토링 예정 false는 원래 보안상 추천되지 않음(프론트에서 쿠키에 접근가능해짐)
       secure: false,        // HTTPS에서만 동작하려면 true (개발환경은 false)
       sameSite: 'lax',      // CSRF 방지
-      maxAge: 60 * 60 * 1000, // 1시간 (밀리초 단위)
+      maxAge: 15 * 60 * 1000, // 15분 (밀리초 단위)
       path: '/',
     });
 

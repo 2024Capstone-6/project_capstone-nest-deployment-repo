@@ -85,17 +85,16 @@ export class QuizGameService {
       },
     );
   }
-  async getWords(): Promise<Word> { // 단어받을용ㅇㅇ
-    const word = await this.wordRepository
-    .createQueryBuilder('word')
-    .orderBy('RAND()')
-    .limit(1)
-    .getOne();
-
+  async getWords(level?: string): Promise<Word> {
+    const query = this.wordRepository.createQueryBuilder('word');
+    if (level && ['N1', 'N2', 'N3', 'N4', 'N5'].includes(level)) {
+      query.where('word.word_level = :level', { level });
+    }
+    const word = await query.orderBy('RAND()').limit(1).getOne();
+  
     if (!word) {
       throw new NotFoundException('단어 없다');
     }
-
     return word;
   }
 }
