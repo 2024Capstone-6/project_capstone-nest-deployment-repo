@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Room } from './schemas/room.schema';
 import { CreateRoomDto } from './dto/create-room.dto';
+import { InjectRepository } from '@nestjs/typeorm'; 
+import { Word } from 'src/words/entities/words.entity';
+import { Repository } from 'typeorm';
 
 type Message = {
   sender: string; // uuid
@@ -14,7 +17,9 @@ type Message = {
 export class QuizGameService {
   constructor(
     @InjectModel(Room.name)
-    private readonly roomModel: Model<Room>
+    private readonly roomModel: Model<Room>,
+    @InjectRepository(Word)
+    private wordRepository: Repository<Word>,
   ) {}
 
   // 방 생성
@@ -87,6 +92,19 @@ export class QuizGameService {
   private generateRoomCode(length: number) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  }
+
+    async getWords(level?: string): Promise<Word> {
+    const query = this.wordRepository.createQueryBuilder('word');
+    if (level && ['JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5','JPT 550','JPT 650','JPT 750','JPT 850','JPT 950','BJT J4','BJT J3','BJT J2','BJT J1','BJT J1+'].includes(level)) {
+      query.where('word.word_level = :level', { level });
+    }
+    const word = await query.orderBy('RAND()').limit(1).getOne();
+  
+    if (!word) {
+      throw new NotFoundException('단어 없다');
+    }
+    return word;
   }
 }
 

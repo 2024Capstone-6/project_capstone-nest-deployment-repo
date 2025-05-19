@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, UseGuards, Req, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards, Req, NotFoundException, Query } from '@nestjs/common';
 import { QuizGameService } from './quiz-game.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // JWT 인증 가드
 import { CreateRoomDto } from './dto/create-room.dto';
@@ -32,6 +32,10 @@ export class QuizGameController {
     return room;
   }
 
+  @Get('/solo')
+  async getWords(@Query('level') level?: string) { //원하는 레벨을 받을수 있게끔 수정 요청은 /solo?level=N1 이렇게
+  return this.quizGameService.getWords(level);
+
   // (선택) 방 삭제 (방장만)
   // @UseGuards(JwtAuthGuard)
   // @Delete('rooms/:roomCode')
@@ -39,4 +43,5 @@ export class QuizGameController {
   //   const userId = req.user.userId;
   //   return this.quizGameService.deleteRoom(roomCode, userId);
   // }
+  }
 }
