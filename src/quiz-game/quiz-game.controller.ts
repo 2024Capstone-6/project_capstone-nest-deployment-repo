@@ -1,22 +1,47 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards, Req, NotFoundException, Query } from '@nestjs/common';
 import { QuizGameService } from './quiz-game.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // JWT 인증 가드
+import { CreateRoomDto } from './dto/create-room.dto';
 
-@Controller('api/rooms')
+@Controller('quiz-game')
 export class QuizGameController {
-  constructor(private readonly quizgameservice: QuizGameService) {}
+  constructor(private readonly quizGameService: QuizGameService) {}
 
-  @Get()
-  async getRooms() {
-    return this.quizgameservice.getLobbyRooms();
+  // 1. 방 생성 (로그인 필요)
+  @UseGuards(JwtAuthGuard)
+  @Post('rooms')
+  async createRoom(@Body() createRoomDto: CreateRoomDto, @Req() req) {
+    console.log('[방생성] req.user:', req.user);
+    const uuid = req.user.uuid;
+    console.log('[방생성] uuid:', uuid);
+    const room = await this.quizGameService.createRoom(createRoomDto, uuid);
+    return room;
   }
 
-  @Post()
-  async createRoom(@Body() body: { name: string }) {
-    return this.quizgameservice.createRoom(body.name);
+  // 2. 방 목록 조회 (누구나)
+  @Get('rooms')
+  async getRooms() {
+    return this.quizGameService.getRooms();
+  }
+
+  // 3. 특정 방 정보 조회 (누구나)
+  @Get('rooms/:roomId')
+  async getRoom(@Param('roomId') roomId: string) {
+    const room = await this.quizGameService.getRoomById(roomId);
+    if (!room) throw new NotFoundException('방을 찾을 수 없습니다.');
+    return room;
   }
 
   @Get('/solo')
   async getWords(@Query('level') level?: string) { //원하는 레벨을 받을수 있게끔 수정 요청은 /solo?level=N1 이렇게
-    return this.quizgameservice.getWords(level);
+  return this.quizGameService.getWords(level);
+
+  // (선택) 방 삭제 (방장만)
+  // @UseGuards(JwtAuthGuard)
+  // @Delete('rooms/:roomCode')
+  // async deleteRoom(@Param('roomCode') roomCode: string, @Req() req) {
+  //   const userId = req.user.userId;
+  //   return this.quizGameService.deleteRoom(roomCode, userId);
+  // }
   }
 }
