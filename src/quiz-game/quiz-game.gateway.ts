@@ -27,6 +27,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     const token = client.handshake.auth?.token;
+    console.log('병신같은 토큰',token);
     if (!token) {
       client.emit('error', { message: '인증 토큰이 없습니다.' });
       return;
@@ -36,7 +37,18 @@ export class QuizGameGateway implements OnGatewayDisconnect {
       const payload = this.jwtService.verify(token);
       uuid = payload.sub;
     } catch {
-      client.emit('error', { message: '토큰이 유효하지 않습니다.' });
+      client.emit('error', { message: '토큰이 유효하지 않습니다아?.' });
+      return;
+    }
+
+    // 방 상태 확인
+    const room = await this.quizGameService.getRoomById(data.roomId);
+    if (!room) {
+      client.emit('error', { message: '방이 존재하지 않습니다.' });
+      return;
+    }
+    if (room.status === 'playing') {
+      client.emit('error', { message: '이미 게임이 시작된 방입니다.' });
       return;
     }
 
@@ -201,6 +213,9 @@ export class QuizGameGateway implements OnGatewayDisconnect {
 
     // 게임 시작 이벤트 브로드캐스트 (게임로직 필요시)
     this.server.to(data.roomId).emit('gameStarted', { roomId: data.roomId });
+
+    const allRooms = await this.quizGameService.getRooms();
+    this.server.emit('roomListUpdate', allRooms);
   }
   }
 }
