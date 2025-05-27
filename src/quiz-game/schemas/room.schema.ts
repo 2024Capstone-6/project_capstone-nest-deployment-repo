@@ -51,6 +51,25 @@ export class Room extends Document {
   // **참가자별 준비 상태 추가**
   @Prop({ type: Object, default: {} })
   readyStatus: Record<string, boolean>;
+
+  // **게임용 필드 추가**
+  @Prop({ type: Object, default: {} })
+  totalScores: Record<string, number>; // 참가자별 점수
+
+  @Prop({ type: [String], default: [] })
+  answeredUsers: string[]; // 이번 문제 맞힌 순서
+
+  @Prop()
+  currentQuestion: string; // 현재 문제(단어)
+
+  @Prop()
+  currentAnswer: string; // 현재 정답
+
+  @Prop({ default: 1 })
+  currentRound: number; // 현재 라운드
+
+  @Prop({ default: 10 })
+  totalRounds: number; // 총 라운드 수
 }
 
 export const RoomSchema = SchemaFactory.createForClass(Room);
