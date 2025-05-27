@@ -112,9 +112,17 @@ export class QuizGameService {
   const room = await this.roomModel.findOne({ roomId });
   if (!room) throw new Error('방이 존재하지 않습니다.');
   if (!room.participants.includes(uuid)) throw new Error('방 참가자가 아님');
-  room.readyStatus[uuid] = ready; 
+  if (!room.readyStatus) room.readyStatus = {}; // 혹시 undefined면 초기화
+  room.readyStatus[uuid] = ready;
+  room.markModified('readyStatus'); // ★ 이 줄을 꼭 추가!
   await room.save();
-  return room;
+  // 최신 상태로 다시 조회해서 반환
+  return await this.roomModel.findOne({ roomId });
+  }
+
+    // 방 상태(status) 변경 (예: 'playing' 등)
+  async setRoomStatus(roomId: string, status: string) {
+    await this.roomModel.updateOne({ roomId }, { status });
   }
 }
 

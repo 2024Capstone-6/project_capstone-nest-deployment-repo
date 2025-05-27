@@ -168,6 +168,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
   try {
     const payload = this.jwtService.verify(token);
     uuid = payload.sub;
+    console.log('준비 상태 변경 요청 uuid:', uuid); 
   } catch {
     client.emit('error', { message: '토큰이 유효하지 않습니다.' });
     return;
@@ -179,18 +180,27 @@ export class QuizGameGateway implements OnGatewayDisconnect {
   // 실시간 방 정보 갱신
   this.server.to(data.roomId).emit('roomUpdate', room);
 
+  // 룸이 null인지 아닌지 점검 (방이터졌다던가)
+  if (!room) {
+  client.emit('error', { message: '방이 존재하지 않습니다.' });
+  return;
+  }
+
   // 모든 참가자가 준비됐는지 확인
   const allReady = room.participants.length > 0 &&
     room.participants.every((id: string) => room.readyStatus[id]);
 
   if (allReady && room.status === 'lobby') {
-    // 게임 시작 처리
-    room.status = 'playing';
-    await room.save();
+    // status를 'playing'으로 변경
+    await this.quizGameService.setRoomStatus(room.roomId, 'playing');
 
-    // 게임 시작 이벤트 브로드캐스트
+    // 최신 방 정보 다시 가져오기 (선택)
+    const updatedRoom = await this.quizGameService.getRoomById(room.roomId);
+    // 방 전체에 최신 정보 브로드캐스트
+    this.server.to(data.roomId).emit('roomUpdate', updatedRoom);
+
+    // 게임 시작 이벤트 브로드캐스트 (게임로직 필요시)
     this.server.to(data.roomId).emit('gameStarted', { roomId: data.roomId });
-    // 필요하면 문제 출제 등 추가 로직
   }
   }
 }

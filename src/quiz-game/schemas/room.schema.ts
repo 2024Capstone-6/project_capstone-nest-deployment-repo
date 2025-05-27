@@ -49,7 +49,7 @@ export class Room extends Document {
   difficulty: string;
 
   // **참가자별 준비 상태 추가**
-  @Prop({ type: Map, of: Boolean, default: {} })
+  @Prop({ type: Object, default: {} })
   readyStatus: Record<string, boolean>;
 }
 
