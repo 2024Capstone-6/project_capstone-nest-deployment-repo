@@ -29,7 +29,8 @@ export class QuizGameService {
       roomId: roomId,
       name: dto.name,
       participants: [uuid],
-      status: 'lobby'
+      status: 'lobby',
+      difficulty: dto.difficulty,
     });
     return room.save();
   }
@@ -50,8 +51,8 @@ export class QuizGameService {
     if (!room) return false;
     // 이미 참가 중이면 무시
     if (room.participants.includes(uuid)) return true;
-    // 최대 인원 제한 (예: 8명)
-    if (room.participants.length >= 8) return false;
+    // 최대 인원 제한 4명
+    if (room.participants.length >= 4) return false;
     room.participants.push(uuid);
     await room.save();
     return true;
@@ -94,17 +95,34 @@ export class QuizGameService {
     return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   }
 
-    async getWords(level?: string): Promise<Word> {
-    const query = this.wordRepository.createQueryBuilder('word');
-    if (level && ['JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5','JPT 550','JPT 650','JPT 750','JPT 850','JPT 950','BJT J4','BJT J3','BJT J2','BJT J1','BJT J1+'].includes(level)) {
-      query.where('word.word_level = :level', { level });
-    }
-    const word = await query.orderBy('RAND()').limit(1).getOne();
-  
-    if (!word) {
-      throw new NotFoundException('단어 없다');
-    }
-    return word;
+  async getWords(level?: string): Promise<Word> {
+  const query = this.wordRepository.createQueryBuilder('word');
+  if (level && ['JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5','JPT 550','JPT 650','JPT 750','JPT 850','JPT 950','BJT J4','BJT J3','BJT J2','BJT J1','BJT J1+'].includes(level)) {
+    query.where('word.word_level = :level', { level });
+  }
+  const word = await query.orderBy('RAND()').limit(1).getOne();
+
+  if (!word) {
+    throw new NotFoundException('단어 없다');
+  }
+  return word;
+  }
+
+  async setReadyStatus(roomId: string, uuid: string, ready: boolean) {
+  const room = await this.roomModel.findOne({ roomId });
+  if (!room) throw new Error('방이 존재하지 않습니다.');
+  if (!room.participants.includes(uuid)) throw new Error('방 참가자가 아님');
+  if (!room.readyStatus) room.readyStatus = {}; // 혹시 undefined면 초기화
+  room.readyStatus[uuid] = ready;
+  room.markModified('readyStatus'); // ★ 이 줄을 꼭 추가!
+  await room.save();
+  // 최신 상태로 다시 조회해서 반환
+  return await this.roomModel.findOne({ roomId });
+  }
+
+    // 방 상태(status) 변경 (예: 'playing' 등)
+  async setRoomStatus(roomId: string, status: string) {
+    await this.roomModel.updateOne({ roomId }, { status });
   }
 }
 

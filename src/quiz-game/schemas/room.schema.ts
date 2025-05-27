@@ -16,6 +16,13 @@ export class Message {
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
 
+// 난이도 레벨 상수
+export const DIFFICULTY_LEVELS = [
+  'JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5',
+  'JPT 550', 'JPT 650', 'JPT 750', 'JPT 850', 'JPT 950',
+  'BJT J4', 'BJT J3', 'BJT J2', 'BJT J1', 'BJT J1+'
+];
+
 // 방 스키마
 @Schema({ timestamps: true, toJSON: { virtuals: true } })
 export class Room extends Document {
@@ -36,6 +43,14 @@ export class Room extends Document {
 
   @Prop({ default: 8 })
   maxParticipants: number;
+
+  // **난이도 필드 추가**
+  @Prop({ required: true, enum: DIFFICULTY_LEVELS })
+  difficulty: string;
+
+  // **참가자별 준비 상태 추가**
+  @Prop({ type: Object, default: {} })
+  readyStatus: Record<string, boolean>;
 }
 
 export const RoomSchema = SchemaFactory.createForClass(Room);
