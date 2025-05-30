@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Post, Body, Param, Request, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Body, Param, Request, UseGuards, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { WordsService } from './words.service';
 import { Word } from './entities/words.entity';
@@ -14,6 +14,34 @@ export class WordsController {
   @Get()
   async getAllWords(): Promise<Word[]> {
     return this.wordsService.findAll();
+  }
+
+  // ✅ 처음시작 & 이어보기 - 단어 데이터 & 진도 불러오기
+  @Get('/with-progress')
+  @UseGuards(AuthGuard('jwt'))
+  async getWordsWithProgress(
+    @Request() req,
+    @Query('learning_level') level: string
+  ) {
+    return this.wordsService.getWordsAndProgress(req.user.uuid, level);
+  }
+
+  // ✅ 진도 저장
+  @Post('/save-progress')
+  async saveProgress(
+    @Request() req,
+    @Body() body: { learning_level: string; current_index: number }
+  ) {
+    return this.wordsService.updateWordProgress(req.user.uuid, body.learning_level, body.current_index);
+  }
+
+  // ✅ 진도 리셋
+  @Delete('/reset-progress')
+  async resetProgress(
+    @Request() req,
+    @Query('learning_level') level: string
+  ): Promise<void> {
+    return this.wordsService.resetWordProgress(req.user.uuid, level);
   }
 
   // ❌ 특정 단어 검색 API

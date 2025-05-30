@@ -5,6 +5,7 @@ import { Word } from './entities/words.entity';
 import { WordBook } from './entities/word-books.entity';
 import { WordMiddle } from './entities/word-middle.entity';
 import { User } from 'src/user/entity/user.entity';
+import { WordProgress } from './entities/word-progress.entity';
 
 @Injectable()
 export class WordsService {
@@ -17,12 +18,78 @@ export class WordsService {
     private wordBookRepository: Repository<WordBook>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(WordProgress)
+    private wordProgressRepository: Repository<WordProgress>,
   ) {}
 
   // 🔥 단어 관련 비즈니스 로직
   // ✅ 모든 단어 조회 로직(프론트에 넘겨줄 데이터)
   async findAll(): Promise<Word[]> {
     return this.wordsRepository.find();
+  }
+
+  // ✅ 처음시작 & 이어보기 - 레벨별 필터링 & 단어 진도 조회
+  async getWordsAndProgress(userUuid: string, level: string) {
+    const user = await this.userRepository.findOne({ where: { uuid: userUuid } });
+    if (!user) throw new Error('유저 없음');
+
+    // 전체 단어 중 해당 레벨만 필터링
+    const words = await this.wordsRepository.find({
+      where: { word_level: level },
+      order: { word_id: 'ASC' },
+    });
+
+    // 해당 유저의 진도 가져오기
+    const progress = await this.wordProgressRepository.findOne({
+      where: { user: { user_id: user.user_id }, learning_level: level },
+    });
+
+    return {
+      learning_level: level,
+      current_index: progress?.current_index ?? 0,
+      words,
+    };
+  }
+
+  // ✅ 진도 저장
+  async updateWordProgress(userUuid: string, level: string, index: number): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { uuid: userUuid } });
+    if (!user) throw new Error('유저를 찾을 수 없습니다.');
+
+    const existing = await this.wordProgressRepository.findOne({
+      where: { user: { user_id: user.user_id }, learning_level: level },
+    });
+
+    if (existing) {
+      existing.current_index = index;
+      await this.wordProgressRepository.save(existing);
+    } else {
+      const progress = this.wordProgressRepository.create({
+        user,
+        learning_level: level,
+        current_index: index,
+      });
+      await this.wordProgressRepository.save(progress);
+    }
+  }
+
+  // ✅ 진도 리셋
+  async resetWordProgress(userUuid: string, level: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { uuid: userUuid } });
+    if (!user) throw new Error('유저를 찾을 수 없습니다.');
+
+    const progress = await this.wordProgressRepository.findOne({
+      where: { user: { user_id: user.user_id }, learning_level: level },
+    });
+
+    if (progress) {
+      // 완전 삭제하고 싶다면 이 줄 사용
+      // await this.wordProgressRepository.remove(progress);
+
+      // 또는 단순 초기화
+      progress.current_index = 0;
+      await this.wordProgressRepository.save(progress);
+    }
   }
 
   /* // ❌ 특정 단어 검색 로직
