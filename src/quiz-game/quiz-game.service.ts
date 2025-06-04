@@ -122,7 +122,10 @@ export class QuizGameService {
   if (!room) throw new Error('방이 존재하지 않습니다.');
   if (!room.participants.includes(uuid)) throw new Error('방 참가자가 아님');
   if (!room.readyStatus) room.readyStatus = {}; // 혹시 undefined면 초기화
-  room.readyStatus[uuid] = ready;
+  if (room.readyStatus[uuid] == ready){
+    room.readyStatus[uuid]=false
+  }
+  else room.readyStatus[uuid] = ready;
   room.markModified('readyStatus'); // ★ 이 줄을 꼭 추가!
   await room.save();
   // 최신 상태로 다시 조회해서 반환
@@ -151,10 +154,10 @@ export class QuizGameService {
   const word = await query.orderBy('RAND()').limit(1).getOne();
   if (!word) throw new Error('해당 레벨의 단어가 없습니다.');
 
-  // 2. 객관식 선택지 만들기 (정답 + 오답 3개, 중복 없이)
-  // 정답
+  // 2. 정답
   const answer = word.word_furigana;
-  // 오답 후보 추출 (정답 제외, 랜덤 3개)
+
+  // 3. 오답 후보 추출 (정답 제외, 랜덤 3개)
   const wrongs = await this.wordRepository.createQueryBuilder('word')
     .where('word.word_level = :level', { level })
     .andWhere('word.word_furigana != :answer', { answer })
@@ -162,23 +165,19 @@ export class QuizGameService {
     .limit(3)
     .getMany();
 
-  // 선택지 배열 만들기 (정답 + 오답 3개)
-  const choices = [answer, ...wrongs.map(w => w.word_furigana)];
-  // 선택지 셔플
-  for (let i = choices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [choices[i], choices[j]] = [choices[j], choices[i]];
-  }
+  // 4. word_quiz 배열: 정답 + 오답 3개 (정답이 항상 0번 인덱스)
+  const word_quiz = [answer, ...wrongs.map(w => w.word_furigana)];
 
-  // 3. 반환
+  // 5. 반환
   return {
     word: word.word,        // 문제로 보여줄 한자 등
     answer: answer,         // 정답(후리가나 등)
-    choices: choices        // 객관식 선택지
+    choices: word_quiz      // 객관식 선택지 (정답이 항상 0번)
   };
   }
 
   async gameInit(roomId: string, totalRounds = 10) {
+    console.log("니점수 초기화함");
     const room = await this.getRoomById(roomId);
     if (!room) throw new Error('방이 존재하지 않습니다.');
     room.currentRound = 1;
@@ -189,14 +188,12 @@ export class QuizGameService {
     return room;
   }
 
-  async updateQuestion(roomId: string, word: string, answer: string, choices: string[]) {
-    const room = await this.getRoomById(roomId);
-    if (!room) throw new Error('방이 존재하지 않습니다.');
-    room.currentQuestion = word;
-    room.currentAnswer = answer;
-    room.answeredUsers = [];
-    await room.save();
-    return room;
+  async updateQuestion(room: Room, word: string, answer: string, choices: string[]) {
+  room.currentQuestion = word;
+  room.currentAnswer = answer;
+  room.answeredUsers = [];
+  await room.save();
+  return room;
   }
 
   async incrementRound(roomId: string) {
@@ -206,14 +203,15 @@ export class QuizGameService {
     await room.save();
     return room;
   }
-
-  async addScore(roomId: string, uuid: string, score: number) {
-    const room = await this.getRoomById(roomId);
-    if (!room) throw new Error('방이 존재하지 않습니다.');
-    if (!room.totalScores) room.totalScores = {};
-    room.totalScores[uuid] = (room.totalScores[uuid] || 0) + score;
-    await room.save();
-    return room;
+  async addScore(roomId: string, uuid: string, totalScore: number) {
+  const updatedRoom = await this.roomModel.findOneAndUpdate(
+    { roomId },
+    { $inc: { [`totalScores.${uuid}`]: totalScore } },
+    { new: true }
+  );
+  if (!updatedRoom) throw new Error("방이 존재하지 않습니다") 
+    else
+    return updatedRoom;
   }
 }
 

@@ -231,21 +231,15 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     if (!room) throw new Error('방이 존재하지 않습니다.');
     if (room.currentRound > room.totalRounds) {
       room.status = 'closed'; await room.save();
-      this.server.to(roomId).emit('gameOver', { scores: room.totalScores });
+      this.server.to(roomId).emit('gameOver', { totalScores: room.totalScores });
       roomTimers.delete(roomId);
       return;
     }
     // 문제 출제 (모든 참가자에게 동일)
     const next = await this.quizGameService.getNextWord(room.difficulty);
-    await this.quizGameService.updateQuestion(roomId, next.word, next.answer, next.choices);
+    await this.quizGameService.updateQuestion(room, next.word, next.answer, next.choices);
     console.log('서버: newQuestion emit 시도', roomId, next.word, next.choices);
       this.server.to(roomId).emit('newQuestion', {
-      question: next.word,
-      choices: next.choices,
-      round: room.currentRound,
-      totalRounds: room.totalRounds,
-    });
-    this.server.to(roomId).emit('newQuestion', {
       question: next.word,
       choices: next.choices,
       round: room.currentRound,
@@ -292,11 +286,13 @@ export class QuizGameGateway implements OnGatewayDisconnect {
       return;
     }
     room.answeredUsers.push(uuid);
+    await room.save();
     const order = room.answeredUsers.length;
     const totalScore = SCORE_TABLE[order - 1] ?? 0;
-    await this.quizGameService.addScore(data.roomId, uuid, totalScore);
-
-    this.server.to(data.roomId).emit('roomUpdate', await this.quizGameService.getRoomById(data.roomId));
+    const updatedRoom = await this.quizGameService.addScore(data.roomId, uuid, totalScore);
+    console.log('DB반영테스트', updatedRoom.totalScores);
+    this.server.to(data.roomId).emit('roomUpdate', updatedRoom);
+    console.log('[서버] 정답 제출:', uuid, '점수:', totalScore);
     client.emit('answerResult', { correct: true, totalScore });
   }
 
