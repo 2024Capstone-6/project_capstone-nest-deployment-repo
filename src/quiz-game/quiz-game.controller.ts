@@ -13,9 +13,9 @@ export class QuizGameController {
   @Post('rooms')
   async createRoom(@Body() createRoomDto: CreateRoomDto, @Req() req) {
     console.log('[방생성] req.user:', req.user);
-    const uuid = req.user.uuid;
-    console.log('[방생성] uuid:', uuid);
-    const room = await this.quizGameService.createRoom(createRoomDto, uuid);
+    const name = req.user.name;
+    console.log('[방생성] uuid:', name);
+    const room = await this.quizGameService.createRoom(createRoomDto, name);
     return room;
   }
 
@@ -42,5 +42,4 @@ export class QuizGameController {
   return word;
   }
 }
-
 

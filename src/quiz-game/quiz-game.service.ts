@@ -27,12 +27,12 @@ export class QuizGameService {
   ) {}
 
   // 방 생성
-  async createRoom(dto: CreateRoomDto, uuid: string) {
+  async createRoom(dto: CreateRoomDto, name: string) {
     const roomId = this.generateRoomCode(6);
     const room = new this.roomModel({
       roomId: roomId,
       name: dto.name,
-      participants: [uuid],
+      participants: [name],
       status: 'lobby',
       difficulty: dto.difficulty,
     });
@@ -123,7 +123,8 @@ export class QuizGameService {
   if (!room.participants.includes(uuid)) throw new Error('방 참가자가 아님');
   if (!room.readyStatus) room.readyStatus = {}; // 혹시 undefined면 초기화
   if (room.readyStatus[uuid] == ready){
-    room.readyStatus[uuid]=false
+    // 이미 ready 상태이면 ready 상태를 해제
+    delete room.readyStatus[uuid];
   }
   else room.readyStatus[uuid] = ready;
   room.markModified('readyStatus'); // ★ 이 줄을 꼭 추가!
@@ -177,7 +178,6 @@ export class QuizGameService {
   }
 
   async gameInit(roomId: string, totalRounds = 10) {
-    console.log("니점수 초기화함");
     const room = await this.getRoomById(roomId);
     if (!room) throw new Error('방이 존재하지 않습니다.');
     room.currentRound = 1;
@@ -188,12 +188,12 @@ export class QuizGameService {
     return room;
   }
 
-  async updateQuestion(room: Room, word: string, answer: string, choices: string[]) {
-  room.currentQuestion = word;
-  room.currentAnswer = answer;
-  room.answeredUsers = [];
-  await room.save();
-  return room;
+async updateQuestion(room: Room, word: string, answer: string, choices: string[]) {
+    room.currentQuestion = word;
+    room.currentAnswer = answer;
+    room.answeredUsers = [];
+    await room.save();
+    return room;
   }
 
   async incrementRound(roomId: string) {
