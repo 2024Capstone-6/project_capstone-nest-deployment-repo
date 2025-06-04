@@ -6,12 +6,16 @@ import { CreateRoomDto } from './dto/create-room.dto';
 import { InjectRepository } from '@nestjs/typeorm'; 
 import { Word } from 'src/words/entities/words.entity';
 import { Repository } from 'typeorm';
+import { Client } from 'socket.io/dist/client';
 
 type Message = {
   sender: string; // uuid
   text: string;
   timestamp: Date;
 };
+
+const SCORE_TABLE = [100, 70, 50, 30];
+const TOTAL_ROUNDS = 10;
 
 @Injectable()
 export class QuizGameService {
@@ -37,12 +41,12 @@ export class QuizGameService {
 
   // 전체 방 목록 조회
   async getRooms() {
-    return this.roomModel.find().lean();
+    return this.roomModel.find();
   }
 
   // 특정 방 조회
   async getRoomById(roomId: string) {
-    return this.roomModel.findOne({ roomId: roomId }).lean();
+    return this.roomModel.findOne({ roomId: roomId });
   }
 
   // 방에 참가자 추가 (중복 방지)
@@ -75,7 +79,7 @@ export class QuizGameService {
 
   // 특정 유저가 참가 중인 모든 방 찾기
   async getRoomsByUser(uuid: string) {
-    return this.roomModel.find({ participants: uuid }).lean();
+    return this.roomModel.find({ participants: uuid });
   }
 
   // 메시지 저장하기
@@ -95,16 +99,21 @@ export class QuizGameService {
     return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   }
 
-  async getWords(level?: string): Promise<Word> {
-  const query = this.wordRepository.createQueryBuilder('word');
-  if (level && ['JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5','JPT 550','JPT 650','JPT 750','JPT 850','JPT 950','BJT J4','BJT J3','BJT J2','BJT J1','BJT J1+'].includes(level)) {
-    query.where('word.word_level = :level', { level });
-  }
-  const word = await query.orderBy('RAND()').limit(1).getOne();
+  async getWords(level?: string): Promise<Word | null> {
+  const validLevels = [
+    'JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5',
+    'JPT 550','JPT 650','JPT 750','JPT 850','JPT 950',
+    'BJT J4','BJT J3','BJT J2','BJT J1','BJT J1+'
+  ];
 
-  if (!word) {
-    throw new NotFoundException('단어 없다');
+  // level이 없거나, 유효하지 않으면 무조건 null 반환
+  if (!level || !validLevels.includes(level)) {
+    return null;
   }
+
+  const query = this.wordRepository.createQueryBuilder('word');
+  query.where('word.word_level = :level', { level });
+  const word = await query.orderBy('RAND()').limit(1).getOne();
   return word;
   }
 
@@ -113,7 +122,10 @@ export class QuizGameService {
   if (!room) throw new Error('방이 존재하지 않습니다.');
   if (!room.participants.includes(uuid)) throw new Error('방 참가자가 아님');
   if (!room.readyStatus) room.readyStatus = {}; // 혹시 undefined면 초기화
-  room.readyStatus[uuid] = ready;
+  if (room.readyStatus[uuid] == ready){
+    room.readyStatus[uuid]=false
+  }
+  else room.readyStatus[uuid] = ready;
   room.markModified('readyStatus'); // ★ 이 줄을 꼭 추가!
   await room.save();
   // 최신 상태로 다시 조회해서 반환
@@ -122,7 +134,84 @@ export class QuizGameService {
 
     // 방 상태(status) 변경 (예: 'playing' 등)
   async setRoomStatus(roomId: string, status: string) {
-    await this.roomModel.updateOne({ roomId }, { status });
+    await this.roomModel.updateOne({ roomId }, { status});
+  }
+
+  // 이거는 그룹게임 단어불러오는 로직임
+  async getNextWord(level: string) {
+  const validLevels = [
+    'JLPT N1', 'JLPT N2', 'JLPT N3', 'JLPT N4', 'JLPT N5',
+    'JPT 550','JPT 650','JPT 750','JPT 850','JPT 950',
+    'BJT J4','BJT J3','BJT J2','BJT J1','BJT J1+'
+  ];
+  if (!level || !validLevels.includes(level)) {
+    throw new Error('유효하지 않은 레벨');
+  }
+
+  // 1. 해당 레벨에서 랜덤 단어 1개 추출
+  const query = this.wordRepository.createQueryBuilder('word');
+  query.where('word.word_level = :level', { level });
+  const word = await query.orderBy('RAND()').limit(1).getOne();
+  if (!word) throw new Error('해당 레벨의 단어가 없습니다.');
+
+  // 2. 정답
+  const answer = word.word_furigana;
+
+  // 3. 오답 후보 추출 (정답 제외, 랜덤 3개)
+  const wrongs = await this.wordRepository.createQueryBuilder('word')
+    .where('word.word_level = :level', { level })
+    .andWhere('word.word_furigana != :answer', { answer })
+    .orderBy('RAND()')
+    .limit(3)
+    .getMany();
+
+  // 4. word_quiz 배열: 정답 + 오답 3개 (정답이 항상 0번 인덱스)
+  const word_quiz = [answer, ...wrongs.map(w => w.word_furigana)];
+
+  // 5. 반환
+  return {
+    word: word.word,        // 문제로 보여줄 한자 등
+    answer: answer,         // 정답(후리가나 등)
+    choices: word_quiz      // 객관식 선택지 (정답이 항상 0번)
+  };
+  }
+
+  async gameInit(roomId: string, totalRounds = 10) {
+    console.log("니점수 초기화함");
+    const room = await this.getRoomById(roomId);
+    if (!room) throw new Error('방이 존재하지 않습니다.');
+    room.currentRound = 1;
+    room.totalRounds = totalRounds;
+    room.totalScores = {};
+    room.answeredUsers = [];
+    await room.save();
+    return room;
+  }
+
+  async updateQuestion(room: Room, word: string, answer: string, choices: string[]) {
+  room.currentQuestion = word;
+  room.currentAnswer = answer;
+  room.answeredUsers = [];
+  await room.save();
+  return room;
+  }
+
+  async incrementRound(roomId: string) {
+    const room = await this.getRoomById(roomId);
+    if (!room) throw new Error('방이 존재하지 않습니다.');
+    room.currentRound += 1;
+    await room.save();
+    return room;
+  }
+  async addScore(roomId: string, uuid: string, totalScore: number) {
+  const updatedRoom = await this.roomModel.findOneAndUpdate(
+    { roomId },
+    { $inc: { [`totalScores.${uuid}`]: totalScore } },
+    { new: true }
+  );
+  if (!updatedRoom) throw new Error("방이 존재하지 않습니다") 
+    else
+    return updatedRoom;
   }
 }
 

@@ -10,6 +10,12 @@ import { Server, Socket } from 'socket.io';
 import { QuizGameService } from './quiz-game.service';
 import { JwtService } from '@nestjs/jwt';
 
+const SCORE_TABLE = [100, 70, 50, 30];
+const ROUND_TIME = 5000; // 5초
+const TOTAL_ROUNDS = 10;
+
+const roomTimers = new Map<string, NodeJS.Timeout>();
+
 @WebSocketGateway({ cors: true })
 export class QuizGameGateway implements OnGatewayDisconnect {
   @WebSocketServer()
@@ -27,7 +33,6 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     const token = client.handshake.auth?.token;
-    console.log('병신같은 토큰',token);
     if (!token) {
       client.emit('error', { message: '인증 토큰이 없습니다.' });
       return;
@@ -180,7 +185,6 @@ export class QuizGameGateway implements OnGatewayDisconnect {
   try {
     const payload = this.jwtService.verify(token);
     uuid = payload.sub;
-    console.log('준비 상태 변경 요청 uuid:', uuid); 
   } catch {
     client.emit('error', { message: '토큰이 유효하지 않습니다.' });
     return;
@@ -214,8 +218,82 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     // 게임 시작 이벤트 브로드캐스트 (게임로직 필요시)
     this.server.to(data.roomId).emit('gameStarted', { roomId: data.roomId });
 
+    // 게임 시작: 첫 문제 출제
+    await this.quizGameService.gameInit(data.roomId, TOTAL_ROUNDS);
+    this.startNewQuestion(data.roomId);
+
     const allRooms = await this.quizGameService.getRooms();
     this.server.emit('roomListUpdate', allRooms);
   }
   }
+  async startNewQuestion(roomId: string) {
+    const room = await this.quizGameService.getRoomById(roomId);
+    if (!room) throw new Error('방이 존재하지 않습니다.');
+    if (room.currentRound > room.totalRounds) {
+      room.status = 'closed'; await room.save();
+      this.server.to(roomId).emit('gameOver', { totalScores: room.totalScores });
+      roomTimers.delete(roomId);
+      return;
+    }
+    // 문제 출제 (모든 참가자에게 동일)
+    const next = await this.quizGameService.getNextWord(room.difficulty);
+    await this.quizGameService.updateQuestion(room, next.word, next.answer, next.choices);
+    console.log('서버: newQuestion emit 시도', roomId, next.word, next.choices);
+      this.server.to(roomId).emit('newQuestion', {
+      question: next.word,
+      choices: next.choices,
+      round: room.currentRound,
+      totalRounds: room.totalRounds,
+    });
+
+    if (roomTimers.has(roomId)) clearTimeout(roomTimers.get(roomId));
+    const timeout = setTimeout(async () => {
+      await this.quizGameService.incrementRound(roomId);
+      this.startNewQuestion(roomId);
+    }, ROUND_TIME);
+    roomTimers.set(roomId, timeout);
+  }
+
+  @SubscribeMessage('submitAnswer')
+  async handleSubmitAnswer(@MessageBody() data, @ConnectedSocket() client: Socket) {
+    const token = client.handshake.auth?.token;
+    if (!token) {
+    client.emit('error', { message: '인증 토큰이 없습니다.' });
+    return;
+    }
+    let uuid: string;
+    try {
+    const payload = this.jwtService.verify(token);
+    uuid = payload.sub;
+    } catch {
+    client.emit('error', { message: '토큰이 유효하지 않습니다.' });
+    return;
+    }
+    const room = await this.quizGameService.getRoomById(data.roomId);
+    if (!room) {
+      client.emit('error', { message: '방이 존재하지 않습니다.' });
+      return;
+    }
+    if (!room.answeredUsers) room.answeredUsers = [];
+    if (room.answeredUsers.includes(uuid)) {
+      client.emit('answerResult', { correct: true, alreadyAnswered: true });
+      return;
+    }
+    // **정답 비교 시 trim()으로 공백 방지**
+    const isCorrect = (data.answer?.trim() ?? '') === (room.currentAnswer?.trim() ?? '');
+    if (!isCorrect) {
+      client.emit('answerResult', { correct: false, totalScore: 0 });
+      return;
+    }
+    room.answeredUsers.push(uuid);
+    await room.save();
+    const order = room.answeredUsers.length;
+    const totalScore = SCORE_TABLE[order - 1] ?? 0;
+    const updatedRoom = await this.quizGameService.addScore(data.roomId, uuid, totalScore);
+    console.log('DB반영테스트', updatedRoom.totalScores);
+    this.server.to(data.roomId).emit('roomUpdate', updatedRoom);
+    console.log('[서버] 정답 제출:', uuid, '점수:', totalScore);
+    client.emit('answerResult', { correct: true, totalScore });
+  }
+
 }
