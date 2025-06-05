@@ -37,4 +37,22 @@ export class TextToSpeechService {
 
     fs.writeFileSync(outputPath, Buffer.from(response.data.audioContent, 'base64'));
   }
+
+  // ✅ MP3 Buffer 반환용 (파일 저장 없이)
+  async synthesizeSpeechToBuffer(text: string): Promise<Buffer> {
+    const cleanedText = this.cleanText(text);
+
+    const response = await axios.post(
+      `${this.apiUrl}?key=${this.apiKey}`,
+      {
+        input: { text: cleanedText },
+        voice: { languageCode: 'ja-JP', ssmlGender: 'FEMALE' },
+        audioConfig: { audioEncoding: 'MP3' }
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    const audioContent: string = response.data.audioContent;
+    return Buffer.from(audioContent, 'base64');
+  }
 }
