@@ -11,7 +11,7 @@ import { QuizGameService } from './quiz-game.service';
 import { JwtService } from '@nestjs/jwt';
 
 const SCORE_TABLE = [100, 70, 50, 30];
-const ROUND_TIME = 5000; // 5초
+const ROUND_TIME = 10000; // 10초
 const TOTAL_ROUNDS = 10;
 
 const roomTimers = new Map<string, NodeJS.Timeout>();
@@ -37,10 +37,10 @@ export class QuizGameGateway implements OnGatewayDisconnect {
       client.emit('error', { message: '인증 토큰이 없습니다.' });
       return;
     }
-    let uuid: string;
+    let name: string;
     try {
       const payload = this.jwtService.verify(token);
-      uuid = payload.sub;
+      name = payload.name;
     } catch {
       client.emit('error', { message: '토큰이 유효하지 않습니다아?.' });
       return;
@@ -58,7 +58,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     }
 
     // 방 입장 처리
-    const result = await this.quizGameService.addParticipant(data.roomId, uuid);
+    const result = await this.quizGameService.addParticipant(data.roomId, name);
     if (!result) {
       client.emit('error', { message: '방이 존재하지 않거나 입장 불가.' });
       return;
@@ -83,15 +83,15 @@ export class QuizGameGateway implements OnGatewayDisconnect {
   ) {
     const token = client.handshake.auth?.token;
     if (!token) return;
-    let uuid: string;
+    let name: string;
     try {
       const payload = this.jwtService.verify(token);
-      uuid = payload.sub;
+      name = payload.name;
     } catch {
       return;
     }
 
-    await this.quizGameService.removeParticipant(data.roomId, uuid);
+    await this.quizGameService.removeParticipant(data.roomId, name);
     client.leave(data.roomId);
 
     // 방 정보 갱신 브로드캐스트 (방 내부)
@@ -115,7 +115,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     let uuid: string;
     try {
       const payload = this.jwtService.verify(token);
-      uuid = payload.sub;
+      uuid = payload.name;
     } catch {
       return;
     }
@@ -153,7 +153,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     let uuid: string;
     try {
       const payload = this.jwtService.verify(token);
-      uuid = payload.sub;
+      uuid = payload.name;
     } catch {
       client.emit('error', { message: '토큰이 유효하지 않습니다.' });
       return;
@@ -184,7 +184,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
   let uuid: string;
   try {
     const payload = this.jwtService.verify(token);
-    uuid = payload.sub;
+    uuid = payload.name;
   } catch {
     client.emit('error', { message: '토큰이 유효하지 않습니다.' });
     return;
@@ -194,7 +194,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
   const room = await this.quizGameService.setReadyStatus(data.roomId, uuid, data.ready);
 
   // 실시간 방 정보 갱신
-  this.server.to(data.roomId).emit('roomUpdate', room);
+  this.server.to(data.roomId).emit('roomUpdate', room); 
 
   // 룸이 null인지 아닌지 점검 (방이터졌다던가)
   if (!room) {
@@ -224,14 +224,18 @@ export class QuizGameGateway implements OnGatewayDisconnect {
 
     const allRooms = await this.quizGameService.getRooms();
     this.server.emit('roomListUpdate', allRooms);
-  }
+    }
   }
   async startNewQuestion(roomId: string) {
     const room = await this.quizGameService.getRoomById(roomId);
     if (!room) throw new Error('방이 존재하지 않습니다.');
     if (room.currentRound > room.totalRounds) {
-      room.status = 'closed'; await room.save();
+      room.status = 'lobby';
+      room.readyStatus={};
+      await room.save();
       this.server.to(roomId).emit('gameOver', { totalScores: room.totalScores });
+      const updatedRoom = await this.quizGameService.getRoomById(room.roomId);
+      this.server.to(roomId).emit('roomUpdate', updatedRoom);
       roomTimers.delete(roomId);
       return;
     }
@@ -239,7 +243,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     const next = await this.quizGameService.getNextWord(room.difficulty);
     await this.quizGameService.updateQuestion(room, next.word, next.answer, next.choices);
     console.log('서버: newQuestion emit 시도', roomId, next.word, next.choices);
-      this.server.to(roomId).emit('newQuestion', {
+    this.server.to(roomId).emit('newQuestion', {
       question: next.word,
       choices: next.choices,
       round: room.currentRound,
@@ -264,7 +268,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     let uuid: string;
     try {
     const payload = this.jwtService.verify(token);
-    uuid = payload.sub;
+    uuid = payload.name;
     } catch {
     client.emit('error', { message: '토큰이 유효하지 않습니다.' });
     return;
