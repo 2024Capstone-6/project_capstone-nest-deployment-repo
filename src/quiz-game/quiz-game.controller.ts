@@ -2,6 +2,7 @@ import { Controller, Post, Get, Param, Body, UseGuards, Req, NotFoundException, 
 import { QuizGameService } from './quiz-game.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // JWT 인증 가드
 import { CreateRoomDto } from './dto/create-room.dto';
+import { Word } from 'src/words/entities/words.entity';
 
 @Controller('quiz-game')
 export class QuizGameController {
@@ -33,15 +34,13 @@ export class QuizGameController {
   }
 
   @Get('/solo')
-  async getWords(@Query('level') level?: string) { //원하는 레벨을 받을수 있게끔 수정 요청은 /solo?level=N1 이렇게
-  return this.quizGameService.getWords(level);
-
-  // (선택) 방 삭제 (방장만)
-  // @UseGuards(JwtAuthGuard)
-  // @Delete('rooms/:roomCode')
-  // async deleteRoom(@Param('roomCode') roomCode: string, @Req() req) {
-  //   const userId = req.user.userId;
-  //   return this.quizGameService.deleteRoom(roomCode, userId);
-  // }
+  async getWords(@Query('level') level?: string) { 
+  const word = await this.quizGameService.getWords(level); //원하는 레벨을 받을수 있게끔 수정 요청은 /solo?level=N1 이렇게
+  if (!word) {
+    return { error: '해당 레벨의 단어가 없습니다.'};
+  }
+  return word;
   }
 }
+
+
