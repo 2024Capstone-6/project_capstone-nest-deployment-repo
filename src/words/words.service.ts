@@ -34,43 +34,53 @@ export class WordsService {
     if (!user) throw new Error('유저 없음');
 
     // 전체 단어 중 해당 레벨만 필터링
-    const words = await this.wordsRepository.find({
+    const allWords = await this.wordsRepository.find({
       where: { word_level: level },
-      order: { word_id: 'ASC' },
+      order: { word_id: 'ASC' }, // 기본 정렬
     });
 
-    // 해당 유저의 진도 가져오기
-    const progress = await this.wordProgressRepository.findOne({
+    // 유저의 진도 가져오기
+    let progress = await this.wordProgressRepository.findOne({
       where: { user: { user_id: user.user_id }, learning_level: level },
     });
 
-    return {
-      learning_level: level,
-      current_index: progress?.current_index ?? 0,
-      words,
-    };
-  }
+    // 없으면 진도 초기화 + 커스텀 순서 생성
+    if (!progress) {
+      progress = this.wordProgressRepository.create({
+        user,
+        learning_level: level,
+        current_index: 0,
+        custom_word_ids: allWords.map(w => w.word_id),
+      });
+      await this.wordProgressRepository.save(progress);
+    }
+
+    // 커스텀 순서로 정렬
+    const wordMap = new Map(allWords.map(w => [w.word_id, w]));
+    const finalWords = progress.custom_word_ids
+      ? progress.custom_word_ids.map(id => wordMap.get(id)).filter((w): w is Word => !!w)
+      : allWords;
+
+      return {
+        learning_level: level,
+        current_index: progress.current_index,
+        words: finalWords,
+      };
+    }
 
   // ✅ 진도 저장
   async updateWordProgress(userUuid: string, level: string, index: number): Promise<void> {
     const user = await this.userRepository.findOne({ where: { uuid: userUuid } });
     if (!user) throw new Error('유저를 찾을 수 없습니다.');
 
-    const existing = await this.wordProgressRepository.findOne({
+    const progress = await this.wordProgressRepository.findOne({
       where: { user: { user_id: user.user_id }, learning_level: level },
     });
 
-    if (existing) {
-      existing.current_index = index;
-      await this.wordProgressRepository.save(existing);
-    } else {
-      const progress = this.wordProgressRepository.create({
-        user,
-        learning_level: level,
-        current_index: index,
-      });
-      await this.wordProgressRepository.save(progress);
-    }
+    if (!progress) return;
+
+    progress.current_index = index;
+    await this.wordProgressRepository.save(progress);
   }
 
   // ✅ 진도 리셋
@@ -82,14 +92,43 @@ export class WordsService {
       where: { user: { user_id: user.user_id }, learning_level: level },
     });
 
-    if (progress) {
-      // 완전 삭제하고 싶다면 이 줄 사용
-      // await this.wordProgressRepository.remove(progress);
+    if (!progress) return;
 
-      // 또는 단순 초기화
-      progress.current_index = 0;
-      await this.wordProgressRepository.save(progress);
-    }
+    const allWords = await this.wordsRepository.find({
+      where: { word_level: level },
+      order: { word_id: 'ASC' },
+    });
+
+    progress.current_index = 0;
+    progress.custom_word_ids = allWords.map(w => w.word_id);
+    await this.wordProgressRepository.save(progress);
+  }
+
+  // ✅ 한번 더 버튼
+  async repeatWord(userUuid: string, level: string, offset: number): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { uuid: userUuid } });
+    if (!user) return;
+
+    const progress = await this.wordProgressRepository.findOne({
+      where: { user: { user_id: user.user_id }, learning_level: level },
+    });
+    if (!progress?.custom_word_ids) return;
+
+    const list = [...progress.custom_word_ids];
+    const i = progress.current_index;
+    const target = Math.min(i + offset, list.length - 1);
+
+    if (i + 1 >= list.length) return;
+
+    const currentWordId = list[i];
+    const nextWordId = list[i + 1];
+
+    list.splice(i, 1);            // 현재 제거
+    list.splice(i, 0, nextWordId); // 다음 앞으로
+    list.splice(target, 0, currentWordId); // 현재 뒤에 삽입
+
+    progress.custom_word_ids = list;
+    await this.wordProgressRepository.save(progress);
   }
 
   /* // ❌ 특정 단어 검색 로직

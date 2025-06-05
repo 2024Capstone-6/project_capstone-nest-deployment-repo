@@ -17,6 +17,9 @@ export class WordProgress {
   @Column({ type: 'int', default: 0 })
   current_index: number; // 셔플 리스트에서의 위치
 
+  @Column({ type: 'json', nullable: true })
+  custom_word_ids?: number[];
+
   @UpdateDateColumn()
   updated_at: Date;
 }
