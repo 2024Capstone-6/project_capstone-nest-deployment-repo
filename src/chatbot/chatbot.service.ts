@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
-// import { SpeechToTextService } from './speech-to-text.service';
-// import { TextToSpeechService } from './text-to-speech.service';
+import { SpeechToTextService } from './speech-to-text.service';
+import { TextToSpeechService } from './text-to-speech.service';
 
 type Message = { role: 'user' | 'gemini'; text: string };
 
@@ -10,12 +10,12 @@ type Message = { role: 'user' | 'gemini'; text: string };
 export class ChatbotService {
   private readonly apiKey: string;
   private readonly apiUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent';  
-  private conversationHistory: Message[] = [];
+  private conversationHistory = new Map<string, Message[]>();
 
   constructor(
     private readonly configService: ConfigService,
-    // private readonly speechToTextService: SpeechToTextService,
-    // private readonly textToSpeechService: TextToSpeechService
+    private readonly speechToTextService: SpeechToTextService,
+    private readonly textToSpeechService: TextToSpeechService
   ) {
     this.apiKey = this.configService.get<string>('GEMINI_API_KEY') ?? '';
   }
@@ -37,7 +37,7 @@ export class ChatbotService {
   }
 
   // ✅ 텍스트 챗봇 - 시작
-  async startConversation(situation: string): Promise<{ text: string /*, audioUrl: string */ }> {
+  async startConversation(uuid: string, situation: string): Promise<{ text: string /*, audioUrl: string */ }> {
     const prompt = `
       状況: ${situation}
       あなたはこの状況に登場する専門家です。ユーザーはその状況にいる人です。
@@ -52,7 +52,7 @@ export class ChatbotService {
     `;
 
     const geminiText = await this.generateResponse(prompt);
-    this.conversationHistory = [{ role: 'gemini', text: geminiText }];
+    this.conversationHistory.set(uuid, [{ role: 'gemini', text: geminiText }]);
 
     // const audioPath = `output_${Date.now()}.mp3`;
     // await this.textToSpeechService.synthesizeSpeech(geminiText, audioPath);
@@ -62,8 +62,9 @@ export class ChatbotService {
   }
 
   // ✅ 텍스트 챗봇 - 이어가기
-  async continueConversation(situation: string, userText: string): Promise<{ text: string /*, audioUrl: string */ }> {
-    this.conversationHistory.push({ role: 'user', text: userText });
+  async continueConversation(uuid: string, situation: string, userText: string): Promise<{ text: string }> {
+    const history = this.conversationHistory.get(uuid) || [];
+    history.push({ role: 'user', text: userText });
 
     const contextPrompt = `
     あなたは「${situation}」における専門家として、ユーザーとロールプレイを続けています。
@@ -77,7 +78,7 @@ export class ChatbotService {
 
     const promptContent = [
       { role: 'user', parts: [{ text: contextPrompt }] },
-      ...this.conversationHistory.map(msg => ({
+      ...history.map(msg => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.text }],
       })),
@@ -90,7 +91,8 @@ export class ChatbotService {
     );
 
     const geminiText = response.data.candidates?.[0]?.content?.parts?.[0]?.text || '応答生成失敗';
-    this.conversationHistory.push({ role: 'gemini', text: geminiText });
+    history.push({ role: 'gemini', text: geminiText });
+    this.conversationHistory.set(uuid, history);
 
     // const audioPath = `output_${Date.now()}.mp3`;
     // await this.textToSpeechService.synthesizeSpeech(geminiText, audioPath);
@@ -99,9 +101,18 @@ export class ChatbotService {
     return { text: geminiText /*, audioUrl */ };
   }
 
+  // ✅ 음성 흐름 처리 (voice-flow)
+  async voiceFlowFromAudio(uuid: string, situation: string, audioBuffer: Buffer): Promise<{ text: string; audioBuffer: Buffer }> {
+    const userText = await this.speechToTextService.transcribeAudio(audioBuffer);
+    const { text } = await this.continueConversation(uuid, situation, userText);
+    const audioBufferOut = await this.textToSpeechService.synthesizeSpeechToBuffer(text);
+    return { text, audioBuffer: audioBufferOut };
+  }
+
   // ✅ 피드백 생성
-  async generateFeedback(): Promise<string> {
-    const userTexts = this.conversationHistory.filter(m => m.role === 'user').map(m => m.text);
+  async generateFeedback(uuid: string): Promise<string> {
+    const history = this.conversationHistory.get(uuid) || [];
+    const userTexts = history.filter(m => m.role === 'user').map(m => m.text);
 
     const prompt = `
     以下は日本語学習者の会話の例です。
