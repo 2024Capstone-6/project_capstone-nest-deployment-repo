@@ -32,6 +32,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     @MessageBody() data: { roomId: string },
     @ConnectedSocket() client: Socket,
   ) {
+    try {
     const token = client.handshake.auth?.token;
     if (!token) {
       client.emit('error', { message: '인증 토큰이 없습니다.' });
@@ -73,14 +74,18 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     // 전체 방 목록 실시간 동기화 (로비)
     const allRooms = await this.quizGameService.getRooms();
     this.server.emit('roomListUpdate', allRooms);
+  } catch (error) {
+    client.emit('error', { message: error.message ?? '오류 발생' });
+    console.error(error);
   }
-
+  }
   // 유저가 방에서 나감
   @SubscribeMessage('leaveRoom')
   async handleLeaveRoom(
     @MessageBody() data: { roomId: string },
     @ConnectedSocket() client: Socket,
   ) {
+    try {
     const token = client.handshake.auth?.token;
     if (!token) return;
     let name: string;
@@ -106,10 +111,15 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     // 전체 방 목록 실시간 동기화 (로비)
     const allRooms = await this.quizGameService.getRooms();
     this.server.emit('roomListUpdate', allRooms);
+  } catch (error) {
+    client.emit('error', { message: error.message ?? '오류 발생' });
+    console.error(error);
+  }
   }
 
   // 소켓 연결이 끊겼을 때 (브라우저 종료/새로고침 등)
   async handleDisconnect(client: Socket) {
+    try {
     const token = client.handshake.auth?.token;
     if (!token) return;
     let uuid: string;
@@ -137,6 +147,10 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     // 전체 방 목록 실시간 동기화 (로비)
     const allRooms = await this.quizGameService.getRooms();
     this.server.emit('roomListUpdate', allRooms);
+  } catch (error) {
+    client.emit('error', { message: error.message ?? '오류 발생' });
+    console.error(error);
+  }
   }
 
   // 메시지 전송
@@ -145,6 +159,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     @MessageBody() data: { roomId: string; text: string },
     @ConnectedSocket() client: Socket,
   ) {
+    try {
     const token = client.handshake.auth?.token;
     if (!token) {
       client.emit('error', { message: '인증 토큰이 없습니다.' });
@@ -168,6 +183,10 @@ export class QuizGameGateway implements OnGatewayDisconnect {
 
     // 해당 방 참가자에게 메시지 브로드캐스트
     this.server.to(data.roomId).emit('newMessage', message);
+  } catch (error) {
+    client.emit('error', { message: error.message ?? '오류 발생' });
+    console.error(error);
+  }
   }
 
   // 준비 상태 변경 (참가자가 "준비" 버튼 클릭 시)
@@ -176,6 +195,7 @@ export class QuizGameGateway implements OnGatewayDisconnect {
   @MessageBody() data: { roomId: string; ready: boolean },
   @ConnectedSocket() client: Socket,
   ) {
+    try {
   const token = client.handshake.auth?.token;
   if (!token) {
     client.emit('error', { message: '인증 토큰이 없습니다.' });
@@ -225,13 +245,21 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     const allRooms = await this.quizGameService.getRooms();
     this.server.emit('roomListUpdate', allRooms);
     }
+  } catch (error) {
+    client.emit('error', { message: error.message ?? '오류 발생' });
+    console.error(error);
+  }
   }
   async startNewQuestion(roomId: string) {
+  try {
     const room = await this.quizGameService.getRoomById(roomId);
-    if (!room) throw new Error('방이 존재하지 않습니다.');
+    if (!room) {
+      this.server.to(roomId).emit('error', { message: '방이 존재하지 않습니다.' });
+      return;
+    }
     if (room.currentRound > room.totalRounds) {
       room.status = 'lobby';
-      room.readyStatus={};
+      room.readyStatus = {};
       await room.save();
       this.server.to(roomId).emit('gameOver', { totalScores: room.totalScores });
       const updatedRoom = await this.quizGameService.getRoomById(room.roomId);
@@ -239,27 +267,34 @@ export class QuizGameGateway implements OnGatewayDisconnect {
       roomTimers.delete(roomId);
       return;
     }
-    // 문제 출제 (모든 참가자에게 동일)
     const next = await this.quizGameService.getNextWord(room.difficulty);
     await this.quizGameService.updateQuestion(room, next.word, next.answer, next.choices);
-    console.log('서버: newQuestion emit 시도', roomId, next.word, next.choices);
     this.server.to(roomId).emit('newQuestion', {
       question: next.word,
       choices: next.choices,
       round: room.currentRound,
       totalRounds: room.totalRounds,
     });
-
     if (roomTimers.has(roomId)) clearTimeout(roomTimers.get(roomId));
     const timeout = setTimeout(async () => {
-      await this.quizGameService.incrementRound(roomId);
-      this.startNewQuestion(roomId);
+      try {
+        await this.quizGameService.incrementRound(roomId);
+        this.startNewQuestion(roomId);
+      } catch (err) {
+        this.server.to(roomId).emit('error', { message: err.message ?? '문제 진행 중 오류' });
+        console.error(err);
+      }
     }, ROUND_TIME);
     roomTimers.set(roomId, timeout);
+  } catch (error) {
+    this.server.to(roomId).emit('error', { message: error.message ?? '문제 출제 중 오류' });
+    console.error(error);
+  }
   }
 
   @SubscribeMessage('submitAnswer')
   async handleSubmitAnswer(@MessageBody() data, @ConnectedSocket() client: Socket) {
+    try {
     const token = client.handshake.auth?.token;
     if (!token) {
     client.emit('error', { message: '인증 토큰이 없습니다.' });
@@ -298,6 +333,9 @@ export class QuizGameGateway implements OnGatewayDisconnect {
     this.server.to(data.roomId).emit('roomUpdate', updatedRoom);
     console.log('[서버] 정답 제출:', uuid, '점수:', totalScore);
     client.emit('answerResult', { correct: true, totalScore });
+  } catch (error) {
+    client.emit('error', { message: error.message ?? '오류 발생' });
+    console.error(error);
   }
-
+  }
 }

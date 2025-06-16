@@ -96,6 +96,6 @@ export class AuthController {
       path: '/',
     });
 
-    return res.redirect('http://yoajung.store:3000/dashboard/vocabulary');
+    return res.redirect('https://yoajung.store/dashboard/vocabulary');
   }
 }
