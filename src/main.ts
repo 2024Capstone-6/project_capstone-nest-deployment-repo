@@ -10,6 +10,8 @@ async function bootstrap() {
   });
   app.use(cookieParser());
 
+  app.setGlobalPrefix('api');
+
   // ✅ 정적 파일 제공 설정 (mp3 등)
   app.useStaticAssets(join(__dirname, '..'), {
     prefix: '/audio/',
